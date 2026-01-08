@@ -1,0 +1,185 @@
+{% load dict_extras %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Calendário de Demandas</title>
+
+    <style>
+        body { font-family: Arial, sans-serif; }
+        h2 { text-align: center; }
+
+        .calendario {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+
+        .dia-semana {
+            font-weight: bold;
+            text-align: center;
+            padding: 8px 0;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+        }
+
+        .dia {
+            border: 1px solid #ccc;
+            min-height: 120px;
+            padding: 5px;
+            cursor: pointer;
+        }
+
+        .numero-dia {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .demanda {
+            background: #e3f2fd;
+            margin-bottom: 4px;
+            padding: 3px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background: #fff;
+            width: 400px;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        .close {
+            float: right;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+
+        input, textarea, select, button {
+            width: 100%;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h2>{{ mes }}/{{ ano }}</h2>
+
+<div class="calendario">
+
+    {% for dia in dias_semana %}
+        <div class="dia-semana">{{ dia }}</div>
+    {% endfor %}
+
+    {% for _ in espacos_vazios %}
+        <div></div>
+    {% endfor %}
+
+    {% for dia in total_dias %}
+        <div class="dia"
+             onclick="abrirCriar('{{ ano }}-{{ mes|stringformat:'02d' }}-{{ dia|stringformat:'02d' }}')">
+
+            <div class="numero-dia">{{ dia }}</div>
+
+            {% for demanda in demandas_por_dia|get_item:dia %}
+                <div class="demanda"
+                     onclick="event.stopPropagation(); abrirDetalhes(
+                        '{{ demanda.titulo|escapejs }}',
+                        '{{ demanda.responsavel }}',
+                        '{{ demanda.get_status_display }}',
+                        '{{ demanda.descricao|escapejs }}'
+                     )">
+                    {{ demanda.titulo }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+
+</div>
+
+<!-- MODAL CRIAR -->
+<div id="modal-criar" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="fecharModal('modal-criar')">&times;</span>
+
+        <h3>Nova Demanda</h3>
+
+        <form method="POST" action="{% url 'criar_demanda' %}">
+            {% csrf_token %}
+
+            <input type="hidden" id="data-demanda" name="data">
+
+            <label>Título</label>
+            <input type="text" name="titulo" required>
+
+            <label>Descrição</label>
+            <textarea name="descricao"></textarea>
+
+            <label>Responsável</label>
+            <select name="responsavel" required>
+                {% for usuario in usuarios %}
+                    <option value="{{ usuario.id }}">{{ usuario.username }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Departamento</label>
+            <select name="departamento" required>
+                {% for depto in departamentos %}
+                    <option value="{{ depto.id }}">{{ depto.nome }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">Salvar</button>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL DETALHES -->
+<div id="modal-detalhes" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="fecharModal('modal-detalhes')">&times;</span>
+
+        <h3 id="det-titulo"></h3>
+        <p><strong>Responsável:</strong> <span id="det-responsavel"></span></p>
+        <p><strong>Status:</strong> <span id="det-status"></span></p>
+        <p id="det-descricao"></p>
+    </div>
+</div>
+
+<script>
+    function abrirCriar(data) {
+        document.getElementById('data-demanda').value = data;
+        document.getElementById('modal-criar').style.display = 'block';
+    }
+
+    function abrirDetalhes(titulo, responsavel, status, descricao) {
+        document.getElementById('det-titulo').innerText = titulo;
+        document.getElementById('det-responsavel').innerText = responsavel || '—';
+        document.getElementById('det-status').innerText = status;
+        document.getElementById('det-descricao').innerText = descricao;
+        document.getElementById('modal-detalhes').style.display = 'block';
+    }
+
+    function fecharModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
