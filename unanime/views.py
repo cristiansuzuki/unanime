@@ -2,92 +2,122 @@ from datetime import date
 from calendar import monthrange
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.http import JsonResponse
-from .models import Demanda, Departamento
+from django.views.decorators.http import require_POST
+
+from .models import Demanda, Departamento, Perfil
+
+
+def is_admin(user):
+    return user.groups.filter(name='Administrador').exists()
 
 
 @login_required
-def home(request):
+def calendario(request, depto_id=None):
     hoje = date.today()
+    ano = hoje.year
+    mes = hoje.month
 
-    ano = int(request.GET.get('ano', hoje.year))
-    mes = int(request.GET.get('mes', hoje.month))
+    perfil = get_object_or_404(Perfil, user=request.user)
 
-    primeiro_dia_semana, total_dias_mes = monthrange(ano, mes)
+    if is_admin(request.user):
+        departamentos = Departamento.objects.all()
+        departamento = (
+            Departamento.objects.get(id=depto_id)
+            if depto_id else departamentos.first()
+        )
+    else:
+        departamentos = None
+        departamento = perfil.departamento
+
+    primeiro_dia, total_dias = monthrange(ano, mes)
 
     demandas = Demanda.objects.filter(
         data__year=ano,
-        data__month=mes
-    ).select_related('responsavel', 'departamento')
+        data__month=mes,
+        departamento=departamento
+    )
 
     demandas_por_dia = {}
-    for demanda in demandas:
-        dia = demanda.data.day
-        demandas_por_dia.setdefault(dia, []).append(demanda)
+    for d in demandas:
+        demandas_por_dia.setdefault(d.data.day, []).append(d)
 
-    mes_anterior = mes - 1 if mes > 1 else 12
-    ano_anterior = ano if mes > 1 else ano - 1
-
-    proximo_mes = mes + 1 if mes < 12 else 1
-    proximo_ano = ano if mes < 12 else ano + 1
-
-    context = {
+    return render(request, 'calendario.html', {
         'ano': ano,
         'mes': mes,
-        'dias_semana': ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
-        'espacos_vazios': range(primeiro_dia_semana),
-        'total_dias': range(1, total_dias_mes + 1),
+        'departamento': departamento,
+        'departamentos': departamentos,
         'demandas_por_dia': demandas_por_dia,
-        'usuarios': User.objects.all(),
-        'departamentos': Departamento.objects.all(),
-        'status_choices': Demanda.StatusChoices.choices,
-        'mes_anterior': mes_anterior,
-        'ano_anterior': ano_anterior,
-        'proximo_mes': proximo_mes,
-        'proximo_ano': proximo_ano,
-    }
-
-    return render(request, 'home.html', context)
+        'dias_mes': range(1, total_dias + 1),
+        'espacos_vazios': range(primeiro_dia),
+        'is_admin': is_admin(request.user),
+    })
 
 
 @login_required
+@require_POST
 def criar_demanda(request):
-    if request.method == 'POST':
-        Demanda.objects.create(
-            titulo=request.POST['titulo'],
-            descricao=request.POST['descricao'],
-            data=request.POST['data'],
-            status=request.POST['status'],
-            responsavel_id=request.POST['responsavel'],
-            departamento_id=request.POST['departamento'],
-        )
+    if not is_admin(request.user):
+        return redirect('home')
+
+    Demanda.objects.create(
+        titulo=request.POST['titulo'],
+        descricao=request.POST.get('descricao', ''),
+        data=request.POST['data'],
+        status=request.POST['status'],
+        departamento_id=request.POST['departamento'],
+    )
+
     return redirect('home')
 
 
 @login_required
-def editar_demanda(request, demanda_id):
-    demanda = get_object_or_404(Demanda, id=demanda_id)
+@require_POST
+def editar_demanda(request, id):
+    demanda = get_object_or_404(Demanda, id=id)
+    user = request.user
 
-    if request.method == 'POST':
-        demanda.titulo = request.POST['titulo']
-        demanda.descricao = request.POST['descricao']
+    # ADMIN pode alterar tudo
+    if is_admin(user):
+        demanda.titulo = request.POST.get('titulo', demanda.titulo)
+        demanda.descricao = request.POST.get('descricao', demanda.descricao)
+    
+    # FUNCIONÁRIO só pode alterar o STATUS
+    if not is_admin(user) and hasattr(user, 'perfil'):
+        # valida que ele é do mesmo departamento
+        perfil = user.perfil
+        if demanda.departamento != perfil.departamento:
+            return redirect('home')  # não permitido
+
+    # Todos podem alterar o STATUS se enviado
+    if 'status' in request.POST:
         demanda.status = request.POST['status']
-        demanda.responsavel_id = request.POST['responsavel']
-        demanda.departamento_id = request.POST['departamento']
-        demanda.save()
 
+    demanda.save()
     return redirect('home')
 
 
 @login_required
+@require_POST
+def excluir_demanda(request, id):
+    if is_admin(request.user):
+        Demanda.objects.filter(id=id).delete()
+    return redirect('home')
+
+@login_required
+@require_POST
 def mover_demanda(request):
-    if request.method == 'POST':
-        demanda_id = request.POST['demanda_id']
-        nova_data = request.POST['nova_data']
+    if not is_admin(request.user):
+        return JsonResponse({'error': 'forbidden'}, status=403)
 
-        demanda = Demanda.objects.get(id=demanda_id)
-        demanda.data = nova_data
-        demanda.save()
+    demanda_id = request.POST.get('demanda_id')
+    nova_data = request.POST.get('nova_data')
 
-        return JsonResponse({'status': 'ok'})
+    if not demanda_id or not nova_data:
+        return JsonResponse({'error': 'dados inválidos'}, status=400)
+
+    demanda = get_object_or_404(Demanda, id=demanda_id)
+    demanda.data = nova_data
+    demanda.save()
+
+    return JsonResponse({'success': True})

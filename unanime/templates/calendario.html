@@ -1,0 +1,208 @@
+{% load dict_extras %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Calendário</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background: #f4f6fa;
+    display: flex;
+    height: 100vh;
+}
+aside {
+    width: 220px;
+    background: #0b1f3a;
+    color: #fff;
+    padding: 20px;
+}
+aside a {
+    display: block;
+    padding: 8px;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 6px;
+}
+aside a:hover {
+    background: #1c3d6e;
+}
+main {
+    flex: 1;
+    padding: 20px;
+}
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.logout-btn {
+    background: #d9534f;
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.logout-btn:hover {
+    background: #c9302c;
+}
+.calendario {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+}
+.dia {
+    background: #fff;
+    border-radius: 8px;
+    padding: 6px;
+    min-height: 120px;
+    cursor: pointer;
+}
+.demanda {
+    margin-top: 4px;
+    padding: 4px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+}
+.AB { background: #ccc; }
+.CO { background: #5cb85c; color: #fff; }
+.PE { background: #d9534f; color: #fff; }
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.modal-content {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    width: 320px;
+}
+</style>
+</head>
+
+<body>
+
+{% if is_admin %}
+<aside>
+<h3>Setores</h3>
+{% for d in departamentos %}
+<a href="{% url 'calendario_setor' d.id %}">{{ d.nome }}</a>
+{% endfor %}
+</aside>
+{% endif %}
+
+<main>
+<div class="topbar">
+    <h2>{{ departamento.nome }} — {{ mes }}/{{ ano }}</h2>
+
+    <!-- Logout seguro via POST -->
+    <form method="POST" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="logout-btn">Logout</button>
+    </form>
+</div>
+
+<div class="calendario">
+{% for _ in espacos_vazios %}<div></div>{% endfor %}
+
+{% for dia in dias_mes %}
+<div class="dia" {% if is_admin %}onclick="abrirCriar('{{ dia }}')" {% endif %}>
+<strong>{{ dia }}</strong>
+
+{% for d in demandas_por_dia|get_item:dia %}
+<div class="demanda {{ d.status }}"
+onclick="event.stopPropagation(); abrirEditar('{{ d.id }}','{{ d.titulo|escapejs }}','{{ d.descricao|escapejs }}','{{ d.status }}')">
+{{ d.titulo }}
+</div>
+{% endfor %}
+</div>
+{% endfor %}
+</div>
+</main>
+
+<!-- Modal Criar/Editar -->
+<div class="modal" id="modal">
+<div class="modal-content">
+<form method="POST" id="form">
+{% csrf_token %}
+<input name="titulo" id="titulo" placeholder="Título" style="width:100%;margin-bottom:8px">
+<textarea name="descricao" id="descricao" placeholder="Descrição" style="width:100%;margin-bottom:8px"></textarea>
+<select name="status" id="status" style="width:100%;margin-bottom:8px">
+<option value="AB">Aberto</option>
+<option value="CO">Concluído</option>
+<option value="PE">Pendente</option>
+</select>
+<button type="submit">Salvar</button>
+<button type="button" onclick="fechar()">Cancelar</button>
+</form>
+</div>
+</div>
+
+<script>
+const modal=document.getElementById("modal");
+const form=document.getElementById("form");
+const titulo=document.getElementById("titulo");
+const descricao=document.getElementById("descricao");
+const status=document.getElementById("status");
+
+function abrirCriar(dia){
+    form.reset(); // limpa qualquer dado anterior
+    form.action="{% url 'criar_demanda' %}";
+
+    // adiciona hidden data e departamento
+    let inputData=document.createElement("input");
+    inputData.type="hidden";
+    inputData.name="data";
+    inputData.value=`{{ ano }}-{{ mes|stringformat:'02d' }}-${String(dia).padStart(2,'0')}`;
+    form.appendChild(inputData);
+
+    let inputDept=document.createElement("input");
+    inputDept.type="hidden";
+    inputDept.name="departamento";
+    inputDept.value="{{ departamento.id }}";
+    form.appendChild(inputDept);
+
+    // admin pode editar tudo
+    titulo.disabled=false;
+    descricao.disabled=false;
+
+    modal.style.display="flex";
+}
+
+function abrirEditar(id,t,d,s){
+    form.reset();
+    form.action=`/demanda/editar/${id}/`;
+    titulo.value=t;
+    descricao.value=d;
+    status.value=s;
+
+    {% if not is_admin %}
+    // Usuário normal só altera STATUS
+    titulo.disabled=true;
+    descricao.disabled=true;
+    {% else %}
+    // Admin edita tudo
+    titulo.disabled=false;
+    descricao.disabled=false;
+    {% endif %}
+
+    modal.style.display="flex";
+}
+
+function fechar(){
+    modal.style.display="none";
+    form.reset();
+}
+</script>
+
+</body>
+</html>
