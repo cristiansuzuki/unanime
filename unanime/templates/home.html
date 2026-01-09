@@ -2,183 +2,306 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <title>Calendário de Demandas</title>
+<meta charset="UTF-8">
+<title>Calendário de Demandas</title>
 
-    <style>
-        body { font-family: Arial, sans-serif; }
-        h2 { text-align: center; }
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0d1b2a;
+    color: #e0e1dd;
+}
 
-        .calendario {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 5px;
-        }
+header {
+    background: #1b263b;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
 
-        .dia-semana {
-            font-weight: bold;
-            text-align: center;
-            padding: 8px 0;
-            background: #f5f5f5;
-            border: 1px solid #ddd;
-        }
+header a {
+    color: #e0e1dd;
+    text-decoration: none;
+    font-size: 22px;
+}
 
-        .dia {
-            border: 1px solid #ccc;
-            min-height: 120px;
-            padding: 5px;
-            cursor: pointer;
-        }
+.container {
+    padding: 20px;
+}
 
-        .numero-dia {
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
+.calendario {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+}
 
-        .demanda {
-            background: #e3f2fd;
-            margin-bottom: 4px;
-            padding: 3px;
-            font-size: 12px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
+.dia-semana {
+    text-align: center;
+    font-weight: bold;
+}
 
-        .modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.4);
-        }
+.dia {
+    background: #ffffff;
+    color: #000;
+    min-height: 120px;
+    border-radius: 10px;
+    padding: 6px;
+    cursor: pointer;
+}
 
-        .modal-content {
-            background: #fff;
-            width: 400px;
-            margin: 10% auto;
-            padding: 20px;
-            border-radius: 5px;
-        }
+.dia:hover {
+    background: #edf2fb;
+}
 
-        .close {
-            float: right;
-            font-size: 20px;
-            cursor: pointer;
-        }
+.numero-dia {
+    font-weight: bold;
+}
 
-        label {
-            display: block;
-            margin-top: 10px;
-        }
+/* DEMANDAS */
+.demanda {
+    margin-top: 4px;
+    padding: 5px;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+}
 
-        input, textarea, select, button {
-            width: 100%;
-            margin-top: 5px;
-        }
-    </style>
+/* STATUS */
+.status-AB { background: #6c757d; }
+.status-CO { background: #2a9d8f; }
+.status-PE { background: #e63946; }
+
+/* MODAIS */
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 10;
+}
+
+.modal-content {
+    background: #fff;
+    color: #000;
+    width: 420px;
+    margin: 8% auto;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.close {
+    float: right;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+label {
+    display: block;
+    margin-top: 10px;
+}
+
+input, textarea, select, button {
+    width: 100%;
+    margin-top: 5px;
+}
+</style>
 </head>
 
 <body>
 
-<h2>{{ mes }}/{{ ano }}</h2>
+<header>
+    <a href="?ano={{ ano_anterior }}&mes={{ mes_anterior }}">◀</a>
+    <strong>{{ mes }}/{{ ano }}</strong>
+    <a href="?ano={{ proximo_ano }}&mes={{ proximo_mes }}">▶</a>
+</header>
 
+<div class="container">
 <div class="calendario">
 
-    {% for dia in dias_semana %}
-        <div class="dia-semana">{{ dia }}</div>
+{% for d in dias_semana %}
+<div class="dia-semana">{{ d }}</div>
+{% endfor %}
+
+{% for _ in espacos_vazios %}<div></div>{% endfor %}
+
+{% for dia in total_dias %}
+<div class="dia"
+     data-data="{{ ano }}-{{ mes|stringformat:'02d' }}-{{ dia|stringformat:'02d' }}"
+     onclick="abrirCriar(this.dataset.data)">
+
+    <div class="numero-dia">{{ dia }}</div>
+
+    {% for demanda in demandas_por_dia|get_item:dia %}
+    <div class="demanda status-{{ demanda.status }}"
+         draggable="true"
+         data-id="{{ demanda.id }}"
+         onclick="event.stopPropagation(); abrirEditar(
+            '{{ demanda.id }}',
+            '{{ demanda.titulo|escapejs }}',
+            '{{ demanda.descricao|escapejs }}',
+            '{{ demanda.status }}',
+            '{{ demanda.responsavel.id }}',
+            '{{ demanda.departamento.id }}'
+         )">
+        {{ demanda.titulo }}
+    </div>
     {% endfor %}
-
-    {% for _ in espacos_vazios %}
-        <div></div>
-    {% endfor %}
-
-    {% for dia in total_dias %}
-        <div class="dia"
-             onclick="abrirCriar('{{ ano }}-{{ mes|stringformat:'02d' }}-{{ dia|stringformat:'02d' }}')">
-
-            <div class="numero-dia">{{ dia }}</div>
-
-            {% for demanda in demandas_por_dia|get_item:dia %}
-                <div class="demanda"
-                     onclick="event.stopPropagation(); abrirDetalhes(
-                        '{{ demanda.titulo|escapejs }}',
-                        '{{ demanda.responsavel }}',
-                        '{{ demanda.get_status_display }}',
-                        '{{ demanda.descricao|escapejs }}'
-                     )">
-                    {{ demanda.titulo }}
-                </div>
-            {% endfor %}
-        </div>
-    {% endfor %}
+</div>
+{% endfor %}
 
 </div>
+</div>
 
-<!-- MODAL CRIAR -->
+<!-- ================= MODAL CRIAR ================= -->
 <div id="modal-criar" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="fecharModal('modal-criar')">&times;</span>
+<div class="modal-content">
+<span class="close" onclick="fecharModal('modal-criar')">&times;</span>
+<h3>Nova Demanda</h3>
 
-        <h3>Nova Demanda</h3>
+<form method="POST" action="{% url 'criar_demanda' %}">
+{% csrf_token %}
+<input type="hidden" id="data-demanda" name="data">
 
-        <form method="POST" action="{% url 'criar_demanda' %}">
-            {% csrf_token %}
+<label>Título</label>
+<input type="text" name="titulo" required>
 
-            <input type="hidden" id="data-demanda" name="data">
+<label>Descrição</label>
+<textarea name="descricao"></textarea>
 
-            <label>Título</label>
-            <input type="text" name="titulo" required>
+<label>Status</label>
+<select name="status">
+{% for v, l in status_choices %}
+<option value="{{ v }}">{{ l }}</option>
+{% endfor %}
+</select>
 
-            <label>Descrição</label>
-            <textarea name="descricao"></textarea>
+<label>Responsável</label>
+<select name="responsavel">
+{% for u in usuarios %}
+<option value="{{ u.id }}">{{ u.username }}</option>
+{% endfor %}
+</select>
 
-            <label>Responsável</label>
-            <select name="responsavel" required>
-                {% for usuario in usuarios %}
-                    <option value="{{ usuario.id }}">{{ usuario.username }}</option>
-                {% endfor %}
-            </select>
+<label>Departamento</label>
+<select name="departamento">
+{% for d in departamentos %}
+<option value="{{ d.id }}">{{ d.nome }}</option>
+{% endfor %}
+</select>
 
-            <label>Departamento</label>
-            <select name="departamento" required>
-                {% for depto in departamentos %}
-                    <option value="{{ depto.id }}">{{ depto.nome }}</option>
-                {% endfor %}
-            </select>
-
-            <button type="submit">Salvar</button>
-        </form>
-    </div>
+<button type="submit">Salvar</button>
+</form>
+</div>
 </div>
 
-<!-- MODAL DETALHES -->
-<div id="modal-detalhes" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="fecharModal('modal-detalhes')">&times;</span>
+<!-- ================= MODAL EDITAR ================= -->
+<div id="modal-editar" class="modal">
+<div class="modal-content">
+<span class="close" onclick="fecharModal('modal-editar')">&times;</span>
+<h3>Editar Demanda</h3>
 
-        <h3 id="det-titulo"></h3>
-        <p><strong>Responsável:</strong> <span id="det-responsavel"></span></p>
-        <p><strong>Status:</strong> <span id="det-status"></span></p>
-        <p id="det-descricao"></p>
-    </div>
+<form method="POST" id="form-editar">
+{% csrf_token %}
+
+<label>Título</label>
+<input type="text" name="titulo" id="edit-titulo">
+
+<label>Descrição</label>
+<textarea name="descricao" id="edit-descricao"></textarea>
+
+<label>Status</label>
+<select name="status" id="edit-status">
+{% for v, l in status_choices %}
+<option value="{{ v }}">{{ l }}</option>
+{% endfor %}
+</select>
+
+<label>Responsável</label>
+<select name="responsavel" id="edit-responsavel">
+{% for u in usuarios %}
+<option value="{{ u.id }}">{{ u.username }}</option>
+{% endfor %}
+</select>
+
+<label>Departamento</label>
+<select name="departamento" id="edit-departamento">
+{% for d in departamentos %}
+<option value="{{ d.id }}">{{ d.nome }}</option>
+{% endfor %}
+</select>
+
+<button type="submit">Salvar Alterações</button>
+</form>
+</div>
 </div>
 
+<!-- ================= JS ================= -->
 <script>
-    function abrirCriar(data) {
-        document.getElementById('data-demanda').value = data;
-        document.getElementById('modal-criar').style.display = 'block';
-    }
+let dragged = null;
+let isDragging = false;
 
-    function abrirDetalhes(titulo, responsavel, status, descricao) {
-        document.getElementById('det-titulo').innerText = titulo;
-        document.getElementById('det-responsavel').innerText = responsavel || '—';
-        document.getElementById('det-status').innerText = status;
-        document.getElementById('det-descricao').innerText = descricao;
-        document.getElementById('modal-detalhes').style.display = 'block';
+/* DRAG & DROP */
+document.addEventListener('dragstart', e => {
+    if (e.target.classList.contains('demanda')) {
+        dragged = e.target;
+        isDragging = true;
     }
+});
 
-    function fecharModal(id) {
-        document.getElementById(id).style.display = 'none';
+document.addEventListener('dragend', () => {
+    setTimeout(() => isDragging = false, 50);
+});
+
+document.addEventListener('dragover', e => {
+    if (e.target.classList.contains('dia')) e.preventDefault();
+});
+
+document.addEventListener('drop', e => {
+    if (e.target.classList.contains('dia')) {
+        e.preventDefault();
+
+        const novaData = e.target.dataset.data;
+        const demandaId = dragged.dataset.id;
+
+        fetch("{% url 'mover_demanda' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `demanda_id=${demandaId}&nova_data=${novaData}`
+        });
+
+        e.target.appendChild(dragged);
     }
+});
+
+/* MODAIS */
+function abrirCriar(data) {
+    if (isDragging) return;
+    document.getElementById('data-demanda').value = data;
+    document.getElementById('modal-criar').style.display = 'block';
+}
+
+function abrirEditar(id, titulo, descricao, status, resp, depto) {
+    if (isDragging) return;
+
+    document.getElementById('edit-titulo').value = titulo;
+    document.getElementById('edit-descricao').value = descricao;
+    document.getElementById('edit-status').value = status;
+    document.getElementById('edit-responsavel').value = resp;
+    document.getElementById('edit-departamento').value = depto;
+
+    document.getElementById('form-editar').action = `/editar-demanda/${id}/`;
+    document.getElementById('modal-editar').style.display = 'block';
+}
+
+function fecharModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
 </script>
 
 </body>
