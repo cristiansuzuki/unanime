@@ -32,16 +32,28 @@ class Demanda(models.Model):
     titulo = models.CharField(max_length=200)
     descricao = models.TextField(blank=True)
     data = models.DateField()
+
     status = models.CharField(
         max_length=2,
         choices=StatusChoices.choices,
         default=StatusChoices.ABERTO
     )
+
     departamento = models.ForeignKey(
         Departamento,
         on_delete=models.CASCADE,
         related_name='demandas'
     )
+
+    # 🔹 RESPONSÁVEL PELA DEMANDA (FUNCIONÁRIO)
+    responsavel = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='demandas_responsavel'
+    )
+
     criado_em = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

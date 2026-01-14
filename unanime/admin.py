@@ -4,3 +4,4 @@ from .models import *
 
 admin.site.register(Demanda)
 admin.site.register(Departamento)
+admin.site.register(Perfil)

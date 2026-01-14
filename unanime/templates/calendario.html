@@ -34,21 +34,28 @@ main{flex:1;padding:20px}
     display:flex;
     justify-content:space-between;
     align-items:center;
-    margin-bottom:15px
+    margin-bottom:10px
 }
 
-/* LOGOUT VERMELHO */
 .logout-btn{
     background:#d9534f;
     border:none;
     color:#fff;
     padding:8px 12px;
     border-radius:6px;
-    cursor:pointer;
-    font-size:14px
+    cursor:pointer
 }
-.logout-btn:hover{
-    background:#c9302c;
+.logout-btn:hover{background:#c9302c}
+
+.filtro-funcionario{
+    margin-bottom:15px
+}
+
+.filtro-funcionario select{
+    padding:6px;
+    border-radius:6px;
+    border:1px solid #ccc;
+    min-width:200px
 }
 
 .calendario{
@@ -88,6 +95,14 @@ main{flex:1;padding:20px}
     border-radius:10px;
     width:320px
 }
+
+.modal-content input,
+.modal-content textarea,
+.modal-content select{
+    width:100%;
+    margin-bottom:8px
+}
+
 .modal-content button{
     margin-top:6px;
     width:100%
@@ -124,7 +139,6 @@ main{flex:1;padding:20px}
 
 <main>
 
-<!-- TOPO -->
 <div class="topbar">
     <h2>{{ departamento.nome }} — {{ mes }}/{{ ano }}</h2>
 
@@ -134,10 +148,23 @@ main{flex:1;padding:20px}
     </form>
 </div>
 
+<!-- FILTRO -->
+<div class="filtro-funcionario">
+    <form method="GET">
+        <select name="responsavel" onchange="this.form.submit()">
+            <option value="">Todos os funcionários</option>
+            {% for p in funcionarios %}
+                <option value="{{ p.user.id }}"
+                {% if request.GET.responsavel == p.user.id|stringformat:"s" %}selected{% endif %}>
+                    {{ p.user.username }}
+                </option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
 <div class="calendario">
-{% for _ in espacos_vazios %}
-    <div></div>
-{% endfor %}
+{% for _ in espacos_vazios %}<div></div>{% endfor %}
 
 {% for dia in dias_mes %}
 <div class="dia" {% if is_admin %}onclick="abrirCriar('{{ dia }}')" {% endif %}>
@@ -149,7 +176,8 @@ onclick="event.stopPropagation(); abrirEditar(
     '{{ d.id }}',
     '{{ d.titulo|escapejs }}',
     '{{ d.descricao|escapejs }}',
-    '{{ d.status }}'
+    '{{ d.status }}',
+    '{{ d.responsavel.id|default:'' }}'
 )">
 {{ d.titulo }}
 </div>
@@ -157,6 +185,7 @@ onclick="event.stopPropagation(); abrirEditar(
 </div>
 {% endfor %}
 </div>
+
 </main>
 
 <!-- MODAL -->
@@ -166,18 +195,22 @@ onclick="event.stopPropagation(); abrirEditar(
 <form method="POST" id="form">
 {% csrf_token %}
 
-<!-- TÍTULO -->
 <input name="titulo" id="titulo" placeholder="Título"
-style="width:100%;margin-bottom:8px"
 {% if not is_admin %}readonly{% endif %}>
 
-<!-- DESCRIÇÃO -->
 <textarea name="descricao" id="descricao" placeholder="Descrição"
-style="width:100%;margin-bottom:8px"
 {% if not is_admin %}readonly{% endif %}></textarea>
 
-<!-- STATUS (TODOS PODEM) -->
-<select name="status" id="status" style="width:100%;margin-bottom:8px">
+{% if is_admin %}
+<select name="responsavel" id="responsavel">
+    <option value="">Responsável</option>
+    {% for p in funcionarios %}
+        <option value="{{ p.user.id }}">{{ p.user.username }}</option>
+    {% endfor %}
+</select>
+{% endif %}
+
+<select name="status" id="status">
     <option value="AB">Aberto</option>
     <option value="CO">Concluído</option>
     <option value="PE">Pendente</option>
@@ -201,31 +234,35 @@ style="width:100%;margin-bottom:8px"
 <script>
 const modal = document.getElementById("modal");
 const form = document.getElementById("form");
-
 let demandaAtual = null;
 
 function abrirCriar(dia){
     {% if not is_admin %} return; {% endif %}
-
     form.action = "{% url 'criar_demanda' %}";
     demandaAtual = null;
+    form.reset();
 
     form.innerHTML += `
         <input type="hidden" name="data"
         value="{{ ano }}-{{ mes|stringformat:'02d' }}-${String(dia).padStart(2,'0')}">
         <input type="hidden" name="departamento" value="{{ departamento.id }}">
     `;
-
     modal.style.display = "flex";
 }
 
-function abrirEditar(id, t, d, s){
+function abrirEditar(id, t, d, s, r){
     form.action = `/demanda/editar/${id}/`;
     demandaAtual = id;
 
     titulo.value = t;
     descricao.value = d;
     status.value = s;
+
+    // 🔑 CORREÇÃO CRÍTICA
+    const resp = document.getElementById("responsavel");
+    if(resp && r){
+        resp.value = r;
+    }
 
     modal.style.display = "flex";
 }

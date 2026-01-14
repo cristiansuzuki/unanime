@@ -20,16 +20,23 @@ def calendario(request, depto_id=None):
 
     perfil = get_object_or_404(Perfil, user=request.user)
 
+    # ===== DEFINIÇÃO DE DEPARTAMENTO =====
     if is_admin(request.user):
         departamentos = Departamento.objects.all()
         departamento = (
-            Departamento.objects.get(id=depto_id)
+            get_object_or_404(Departamento, id=depto_id)
             if depto_id else departamentos.first()
         )
     else:
         departamentos = None
         departamento = perfil.departamento
 
+    # ===== FUNCIONÁRIOS DO SETOR =====
+    funcionarios = Perfil.objects.filter(
+        departamento=departamento
+    ).select_related('user')
+
+    # ===== CALENDÁRIO =====
     primeiro_dia, total_dias = monthrange(ano, mes)
 
     demandas = Demanda.objects.filter(
@@ -38,6 +45,12 @@ def calendario(request, depto_id=None):
         departamento=departamento
     )
 
+    # ===== FILTRO POR RESPONSÁVEL =====
+    responsavel_id = request.GET.get('responsavel')
+    if responsavel_id:
+        demandas = demandas.filter(responsavel_id=responsavel_id)
+
+    # ===== AGRUPAR POR DIA =====
     demandas_por_dia = {}
     for d in demandas:
         demandas_por_dia.setdefault(d.data.day, []).append(d)
@@ -47,6 +60,7 @@ def calendario(request, depto_id=None):
         'mes': mes,
         'departamento': departamento,
         'departamentos': departamentos,
+        'funcionarios': funcionarios,
         'demandas_por_dia': demandas_por_dia,
         'dias_mes': range(1, total_dias + 1),
         'espacos_vazios': range(primeiro_dia),
@@ -66,9 +80,10 @@ def criar_demanda(request):
         data=request.POST['data'],
         status=request.POST['status'],
         departamento_id=request.POST['departamento'],
+        responsavel_id=request.POST.get('responsavel') or None
     )
 
-    return redirect('home')
+    return redirect(request.META.get('HTTP_REFERER', 'home'))
 
 
 @login_required
@@ -77,24 +92,34 @@ def editar_demanda(request, id):
     demanda = get_object_or_404(Demanda, id=id)
     user = request.user
 
-    # ADMIN pode alterar tudo
+    # ================= ADMIN =================
     if is_admin(user):
         demanda.titulo = request.POST.get('titulo', demanda.titulo)
         demanda.descricao = request.POST.get('descricao', demanda.descricao)
-    
-    # FUNCIONÁRIO só pode alterar o STATUS
-    if not is_admin(user) and hasattr(user, 'perfil'):
-        # valida que ele é do mesmo departamento
-        perfil = user.perfil
-        if demanda.departamento != perfil.departamento:
-            return redirect('home')  # não permitido
 
-    # Todos podem alterar o STATUS se enviado
+        if 'responsavel' in request.POST:
+            demanda.responsavel_id = request.POST.get('responsavel') or None
+
+        if 'status' in request.POST:
+            demanda.status = request.POST['status']
+
+        demanda.save()
+        return redirect(request.META.get('HTTP_REFERER', 'home'))
+
+    # ================= FUNCIONÁRIO =================
+    # precisa ter perfil e ser do mesmo setor
+    if not hasattr(user, 'perfil'):
+        return redirect('home')
+
+    if demanda.departamento != user.perfil.departamento:
+        return redirect('home')
+
+    # funcionário SÓ pode alterar o status
     if 'status' in request.POST:
         demanda.status = request.POST['status']
+        demanda.save()
 
-    demanda.save()
-    return redirect('home')
+    return redirect(request.META.get('HTTP_REFERER', 'home'))
 
 
 @login_required
@@ -102,7 +127,8 @@ def editar_demanda(request, id):
 def excluir_demanda(request, id):
     if is_admin(request.user):
         Demanda.objects.filter(id=id).delete()
-    return redirect('home')
+    return redirect(request.META.get('HTTP_REFERER', 'home'))
+
 
 @login_required
 @require_POST
