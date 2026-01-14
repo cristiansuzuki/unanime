@@ -6,85 +6,107 @@
 <title>Calendário</title>
 
 <style>
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    background: #f4f6fa;
-    display: flex;
-    height: 100vh;
+body{
+    font-family:Arial;
+    margin:0;
+    background:#f4f6fa;
+    display:flex;
+    height:100vh
 }
-aside {
-    width: 220px;
-    background: #0b1f3a;
-    color: #fff;
-    padding: 20px;
+aside{
+    width:220px;
+    background:#0b1f3a;
+    color:#fff;
+    padding:20px
 }
-aside a {
-    display: block;
-    padding: 8px;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 6px;
+aside a{
+    display:block;
+    padding:8px;
+    color:#fff;
+    text-decoration:none;
+    border-radius:6px
 }
-aside a:hover {
-    background: #1c3d6e;
+aside a:hover{background:#1c3d6e}
+
+main{flex:1;padding:20px}
+
+.topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:15px
 }
-main {
-    flex: 1;
-    padding: 20px;
+
+/* LOGOUT VERMELHO */
+.logout-btn{
+    background:#d9534f;
+    border:none;
+    color:#fff;
+    padding:8px 12px;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:14px
 }
-.topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+.logout-btn:hover{
+    background:#c9302c;
 }
-.logout-btn {
-    background: #d9534f;
-    color: #fff;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
+
+.calendario{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:8px
 }
-.logout-btn:hover {
-    background: #c9302c;
+.dia{
+    background:#fff;
+    border-radius:8px;
+    padding:6px;
+    min-height:120px;
+    cursor:pointer
 }
-.calendario {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 8px;
+.demanda{
+    margin-top:4px;
+    padding:4px;
+    border-radius:4px;
+    font-size:12px;
+    cursor:pointer
 }
-.dia {
-    background: #fff;
-    border-radius: 8px;
-    padding: 6px;
-    min-height: 120px;
-    cursor: pointer;
+.AB{background:#ccc}
+.CO{background:#5cb85c;color:#fff}
+.PE{background:#d9534f;color:#fff}
+
+.modal{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.4);
+    display:none;
+    align-items:center;
+    justify-content:center
 }
-.demanda {
-    margin-top: 4px;
-    padding: 4px;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
+.modal-content{
+    background:#fff;
+    padding:20px;
+    border-radius:10px;
+    width:320px
 }
-.AB { background: #ccc; }
-.CO { background: #5cb85c; color: #fff; }
-.PE { background: #d9534f; color: #fff; }
-.modal {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,.4);
-    display: none;
-    align-items: center;
-    justify-content: center;
+.modal-content button{
+    margin-top:6px;
+    width:100%
 }
-.modal-content {
-    background: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    width: 320px;
+
+.btn-excluir{
+    background:#d9534f;
+    color:#fff;
+    border:none;
+    padding:8px;
+    border-radius:6px;
+    cursor:pointer
+}
+.btn-cancelar{
+    background:#ccc;
+    border:none;
+    padding:8px;
+    border-radius:6px;
+    cursor:pointer
 }
 </style>
 </head>
@@ -93,18 +115,19 @@ main {
 
 {% if is_admin %}
 <aside>
-<h3>Setores</h3>
-{% for d in departamentos %}
-<a href="{% url 'calendario_setor' d.id %}">{{ d.nome }}</a>
-{% endfor %}
+    <h3>Setores</h3>
+    {% for d in departamentos %}
+        <a href="{% url 'calendario_setor' d.id %}">{{ d.nome }}</a>
+    {% endfor %}
 </aside>
 {% endif %}
 
 <main>
+
+<!-- TOPO -->
 <div class="topbar">
     <h2>{{ departamento.nome }} — {{ mes }}/{{ ano }}</h2>
 
-    <!-- Logout seguro via POST -->
     <form method="POST" action="{% url 'logout' %}">
         {% csrf_token %}
         <button type="submit" class="logout-btn">Logout</button>
@@ -112,7 +135,9 @@ main {
 </div>
 
 <div class="calendario">
-{% for _ in espacos_vazios %}<div></div>{% endfor %}
+{% for _ in espacos_vazios %}
+    <div></div>
+{% endfor %}
 
 {% for dia in dias_mes %}
 <div class="dia" {% if is_admin %}onclick="abrirCriar('{{ dia }}')" {% endif %}>
@@ -120,7 +145,12 @@ main {
 
 {% for d in demandas_por_dia|get_item:dia %}
 <div class="demanda {{ d.status }}"
-onclick="event.stopPropagation(); abrirEditar('{{ d.id }}','{{ d.titulo|escapejs }}','{{ d.descricao|escapejs }}','{{ d.status }}')">
+onclick="event.stopPropagation(); abrirEditar(
+    '{{ d.id }}',
+    '{{ d.titulo|escapejs }}',
+    '{{ d.descricao|escapejs }}',
+    '{{ d.status }}'
+)">
 {{ d.titulo }}
 </div>
 {% endfor %}
@@ -129,77 +159,93 @@ onclick="event.stopPropagation(); abrirEditar('{{ d.id }}','{{ d.titulo|escapejs
 </div>
 </main>
 
-<!-- Modal Criar/Editar -->
+<!-- MODAL -->
 <div class="modal" id="modal">
 <div class="modal-content">
+
 <form method="POST" id="form">
 {% csrf_token %}
-<input name="titulo" id="titulo" placeholder="Título" style="width:100%;margin-bottom:8px">
-<textarea name="descricao" id="descricao" placeholder="Descrição" style="width:100%;margin-bottom:8px"></textarea>
+
+<!-- TÍTULO -->
+<input name="titulo" id="titulo" placeholder="Título"
+style="width:100%;margin-bottom:8px"
+{% if not is_admin %}readonly{% endif %}>
+
+<!-- DESCRIÇÃO -->
+<textarea name="descricao" id="descricao" placeholder="Descrição"
+style="width:100%;margin-bottom:8px"
+{% if not is_admin %}readonly{% endif %}></textarea>
+
+<!-- STATUS (TODOS PODEM) -->
 <select name="status" id="status" style="width:100%;margin-bottom:8px">
-<option value="AB">Aberto</option>
-<option value="CO">Concluído</option>
-<option value="PE">Pendente</option>
+    <option value="AB">Aberto</option>
+    <option value="CO">Concluído</option>
+    <option value="PE">Pendente</option>
 </select>
+
 <button type="submit">Salvar</button>
-<button type="button" onclick="fechar()">Cancelar</button>
+
+{% if is_admin %}
+<button type="button" class="btn-excluir" onclick="excluirDemanda()">
+    Excluir demanda
+</button>
+{% endif %}
+
+<button type="button" class="btn-cancelar" onclick="fechar()">Cancelar</button>
+
 </form>
+
 </div>
 </div>
 
 <script>
-const modal=document.getElementById("modal");
-const form=document.getElementById("form");
-const titulo=document.getElementById("titulo");
-const descricao=document.getElementById("descricao");
-const status=document.getElementById("status");
+const modal = document.getElementById("modal");
+const form = document.getElementById("form");
+
+let demandaAtual = null;
 
 function abrirCriar(dia){
-    form.reset(); // limpa qualquer dado anterior
-    form.action="{% url 'criar_demanda' %}";
+    {% if not is_admin %} return; {% endif %}
 
-    // adiciona hidden data e departamento
-    let inputData=document.createElement("input");
-    inputData.type="hidden";
-    inputData.name="data";
-    inputData.value=`{{ ano }}-{{ mes|stringformat:'02d' }}-${String(dia).padStart(2,'0')}`;
-    form.appendChild(inputData);
+    form.action = "{% url 'criar_demanda' %}";
+    demandaAtual = null;
 
-    let inputDept=document.createElement("input");
-    inputDept.type="hidden";
-    inputDept.name="departamento";
-    inputDept.value="{{ departamento.id }}";
-    form.appendChild(inputDept);
+    form.innerHTML += `
+        <input type="hidden" name="data"
+        value="{{ ano }}-{{ mes|stringformat:'02d' }}-${String(dia).padStart(2,'0')}">
+        <input type="hidden" name="departamento" value="{{ departamento.id }}">
+    `;
 
-    // admin pode editar tudo
-    titulo.disabled=false;
-    descricao.disabled=false;
-
-    modal.style.display="flex";
+    modal.style.display = "flex";
 }
 
-function abrirEditar(id,t,d,s){
-    form.reset();
-    form.action=`/demanda/editar/${id}/`;
-    titulo.value=t;
-    descricao.value=d;
-    status.value=s;
+function abrirEditar(id, t, d, s){
+    form.action = `/demanda/editar/${id}/`;
+    demandaAtual = id;
 
-    {% if not is_admin %}
-    // Usuário normal só altera STATUS
-    titulo.disabled=true;
-    descricao.disabled=true;
-    {% else %}
-    // Admin edita tudo
-    titulo.disabled=false;
-    descricao.disabled=false;
-    {% endif %}
+    titulo.value = t;
+    descricao.value = d;
+    status.value = s;
 
-    modal.style.display="flex";
+    modal.style.display = "flex";
+}
+
+function excluirDemanda(){
+    if(!demandaAtual) return;
+    if(!confirm("Tem certeza que deseja excluir esta demanda?")) return;
+
+    let f = document.createElement("form");
+    f.method = "POST";
+    f.action = `/demanda/excluir/${demandaAtual}/`;
+    f.innerHTML = `
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+    `;
+    document.body.appendChild(f);
+    f.submit();
 }
 
 function fechar(){
-    modal.style.display="none";
+    modal.style.display = "none";
     form.reset();
 }
 </script>
