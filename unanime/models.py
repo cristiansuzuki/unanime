@@ -39,13 +39,16 @@ class Demanda(models.Model):
         default=StatusChoices.ABERTO
     )
 
+    # 🔹 NOVOS CAMPOS
+    motivo_atraso = models.TextField(blank=True)
+    nova_data = models.DateField(null=True, blank=True)
+
     departamento = models.ForeignKey(
         Departamento,
         on_delete=models.CASCADE,
         related_name='demandas'
     )
 
-    # 🔹 RESPONSÁVEL PELA DEMANDA (FUNCIONÁRIO)
     responsavel = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

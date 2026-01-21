@@ -68,6 +68,7 @@ def calendario(request, depto_id=None):
     })
 
 
+# ================= CRIAR DEMANDA (RESTAURADO) =================
 @login_required
 @require_POST
 def criar_demanda(request):
@@ -78,7 +79,7 @@ def criar_demanda(request):
         titulo=request.POST['titulo'],
         descricao=request.POST.get('descricao', ''),
         data=request.POST['data'],
-        status=request.POST['status'],
+        status=request.POST.get('status', 'AB'),
         departamento_id=request.POST['departamento'],
         responsavel_id=request.POST.get('responsavel') or None
     )
@@ -86,13 +87,34 @@ def criar_demanda(request):
     return redirect(request.META.get('HTTP_REFERER', 'home'))
 
 
+# ================= EDITAR DEMANDA =================
 @login_required
 @require_POST
 def editar_demanda(request, id):
     demanda = get_object_or_404(Demanda, id=id)
     user = request.user
 
-    # ================= ADMIN =================
+    # ===== PERMISSÃO =====
+    if not is_admin(user):
+        if not hasattr(user, 'perfil'):
+            return redirect('home')
+        if demanda.departamento != user.perfil.departamento:
+            return redirect('home')
+
+    status = request.POST.get('status')
+
+    # ===== STATUS PENDENTE =====
+    if status:
+        demanda.status = status
+
+        if status == 'PE':
+            demanda.motivo_atraso = request.POST.get('motivo_atraso', '')
+            nova_data = request.POST.get('nova_data')
+            if nova_data:
+                demanda.nova_data = nova_data
+                demanda.data = nova_data
+
+    # ===== ADMIN PODE EDITAR MAIS CAMPOS =====
     if is_admin(user):
         demanda.titulo = request.POST.get('titulo', demanda.titulo)
         demanda.descricao = request.POST.get('descricao', demanda.descricao)
@@ -100,28 +122,11 @@ def editar_demanda(request, id):
         if 'responsavel' in request.POST:
             demanda.responsavel_id = request.POST.get('responsavel') or None
 
-        if 'status' in request.POST:
-            demanda.status = request.POST['status']
-
-        demanda.save()
-        return redirect(request.META.get('HTTP_REFERER', 'home'))
-
-    # ================= FUNCIONÁRIO =================
-    # precisa ter perfil e ser do mesmo setor
-    if not hasattr(user, 'perfil'):
-        return redirect('home')
-
-    if demanda.departamento != user.perfil.departamento:
-        return redirect('home')
-
-    # funcionário SÓ pode alterar o status
-    if 'status' in request.POST:
-        demanda.status = request.POST['status']
-        demanda.save()
-
+    demanda.save()
     return redirect(request.META.get('HTTP_REFERER', 'home'))
 
 
+# ================= EXCLUIR DEMANDA =================
 @login_required
 @require_POST
 def excluir_demanda(request, id):
@@ -130,6 +135,7 @@ def excluir_demanda(request, id):
     return redirect(request.META.get('HTTP_REFERER', 'home'))
 
 
+# ================= MOVER DEMANDA =================
 @login_required
 @require_POST
 def mover_demanda(request):

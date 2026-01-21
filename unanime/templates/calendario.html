@@ -148,7 +148,6 @@ main{flex:1;padding:20px}
     </form>
 </div>
 
-<!-- FILTRO -->
 <div class="filtro-funcionario">
     <form method="GET">
         <select name="responsavel" onchange="this.form.submit()">
@@ -188,7 +187,6 @@ onclick="event.stopPropagation(); abrirEditar(
 
 </main>
 
-<!-- MODAL -->
 <div class="modal" id="modal">
 <div class="modal-content">
 
@@ -210,11 +208,17 @@ onclick="event.stopPropagation(); abrirEditar(
 </select>
 {% endif %}
 
-<select name="status" id="status">
+<select name="status" id="status" onchange="togglePendente()">
     <option value="AB">Aberto</option>
     <option value="CO">Concluído</option>
     <option value="PE">Pendente</option>
 </select>
+
+<!-- 🔴 CAMPOS EXTRAS PARA PENDENTE -->
+<div id="pendenteCampos" style="display:none">
+    <textarea name="motivo_atraso" placeholder="Motivo do atraso"></textarea>
+    <input type="date" name="nova_data">
+</div>
 
 <button type="submit">Salvar</button>
 
@@ -234,13 +238,21 @@ onclick="event.stopPropagation(); abrirEditar(
 <script>
 const modal = document.getElementById("modal");
 const form = document.getElementById("form");
+const statusField = document.getElementById("status");
+const pendenteCampos = document.getElementById("pendenteCampos");
 let demandaAtual = null;
+
+function togglePendente(){
+    pendenteCampos.style.display =
+        statusField.value === "PE" ? "block" : "none";
+}
 
 function abrirCriar(dia){
     {% if not is_admin %} return; {% endif %}
     form.action = "{% url 'criar_demanda' %}";
     demandaAtual = null;
     form.reset();
+    togglePendente();
 
     form.innerHTML += `
         <input type="hidden" name="data"
@@ -258,12 +270,12 @@ function abrirEditar(id, t, d, s, r){
     descricao.value = d;
     status.value = s;
 
-    // 🔑 CORREÇÃO CRÍTICA
     const resp = document.getElementById("responsavel");
     if(resp && r){
         resp.value = r;
     }
 
+    togglePendente();
     modal.style.display = "flex";
 }
 
