@@ -176,9 +176,11 @@ onclick="event.stopPropagation(); abrirEditar(
     '{{ d.titulo|escapejs }}',
     '{{ d.descricao|escapejs }}',
     '{{ d.status }}',
-    '{{ d.responsavel.id|default:'' }}'
+    '{{ d.responsavel.id|default:'' }}',
+    '{{ d.motivo_atraso|default:''|escapejs }}',
+    '{{ d.nova_data|default:'' }}'
 )">
-{{ d.titulo }}
+{% if d.status == 'PE' %}⏳ {% endif %}{{ d.titulo }}
 </div>
 {% endfor %}
 </div>
@@ -187,6 +189,7 @@ onclick="event.stopPropagation(); abrirEditar(
 
 </main>
 
+<!-- MODAL -->
 <div class="modal" id="modal">
 <div class="modal-content">
 
@@ -214,7 +217,6 @@ onclick="event.stopPropagation(); abrirEditar(
     <option value="PE">Pendente</option>
 </select>
 
-<!-- 🔴 CAMPOS EXTRAS PARA PENDENTE -->
 <div id="pendenteCampos" style="display:none">
     <textarea name="motivo_atraso" placeholder="Motivo do atraso"></textarea>
     <input type="date" name="nova_data">
@@ -238,13 +240,12 @@ onclick="event.stopPropagation(); abrirEditar(
 <script>
 const modal = document.getElementById("modal");
 const form = document.getElementById("form");
-const statusField = document.getElementById("status");
-const pendenteCampos = document.getElementById("pendenteCampos");
 let demandaAtual = null;
 
 function togglePendente(){
-    pendenteCampos.style.display =
-        statusField.value === "PE" ? "block" : "none";
+    const status = document.getElementById("status").value;
+    document.getElementById("pendenteCampos").style.display =
+        status === "PE" ? "block" : "none";
 }
 
 function abrirCriar(dia){
@@ -252,6 +253,7 @@ function abrirCriar(dia){
     form.action = "{% url 'criar_demanda' %}";
     demandaAtual = null;
     form.reset();
+    document.getElementById("status").value = "AB";
     togglePendente();
 
     form.innerHTML += `
@@ -262,20 +264,29 @@ function abrirCriar(dia){
     modal.style.display = "flex";
 }
 
-function abrirEditar(id, t, d, s, r){
+function abrirEditar(id, t, d, s, r, motivo, novaData){
     form.action = `/demanda/editar/${id}/`;
     demandaAtual = id;
 
     titulo.value = t;
     descricao.value = d;
-    status.value = s;
+
+    // ✅ AJUSTE 1: status correto ao abrir
+    const statusField = document.getElementById("status");
+    statusField.value = s;
+    togglePendente();
+
+    // ✅ AJUSTE 2: preencher campos pendentes corretamente
+    if(s === "PE"){
+        document.querySelector("[name='motivo_atraso']").value = motivo || "";
+        document.querySelector("[name='nova_data']").value = novaData || "";
+    }
 
     const resp = document.getElementById("responsavel");
     if(resp && r){
         resp.value = r;
     }
 
-    togglePendente();
     modal.style.display = "flex";
 }
 
@@ -296,6 +307,7 @@ function excluirDemanda(){
 function fechar(){
     modal.style.display = "none";
     form.reset();
+    togglePendente();
 }
 </script>
 
