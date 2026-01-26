@@ -28,6 +28,7 @@ class Demanda(models.Model):
         ABERTO = 'AB', 'Aberto'
         CONCLUIDO = 'CO', 'Concluído'
         PENDENTE = 'PE', 'Pendente'
+        FECHADO = 'FE', 'Fechado'
 
     titulo = models.CharField(max_length=200)
     descricao = models.TextField(blank=True)
@@ -39,9 +40,16 @@ class Demanda(models.Model):
         default=StatusChoices.ABERTO
     )
 
-    # 🔹 NOVOS CAMPOS
     motivo_atraso = models.TextField(blank=True)
     nova_data = models.DateField(null=True, blank=True)
+
+    demanda_origem = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reagendamentos'
+    )
 
     departamento = models.ForeignKey(
         Departamento,

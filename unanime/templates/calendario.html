@@ -77,9 +77,12 @@ main{flex:1;padding:20px}
     font-size:12px;
     cursor:pointer
 }
+
 .AB{background:#ccc}
 .CO{background:#5cb85c;color:#fff}
-.PE{background:#d9534f;color:#fff}
+.PE{background:#f0ad4e;color:#000}
+.FE{background:#666;color:#fff}
+.vencida{background:#d9534f;color:#fff}
 
 .modal{
     position:fixed;
@@ -93,7 +96,7 @@ main{flex:1;padding:20px}
     background:#fff;
     padding:20px;
     border-radius:10px;
-    width:320px
+    width:340px
 }
 
 .modal-content input,
@@ -122,6 +125,15 @@ main{flex:1;padding:20px}
     padding:8px;
     border-radius:6px;
     cursor:pointer
+}
+
+.info-pendente{
+    font-size:11px;
+    color:#666;
+    background:#f9f2d0;
+    padding:6px;
+    border-radius:6px;
+    margin-bottom:6px
 }
 </style>
 </head>
@@ -170,7 +182,13 @@ main{flex:1;padding:20px}
 <strong>{{ dia }}</strong>
 
 {% for d in demandas_por_dia|get_item:dia %}
-<div class="demanda {{ d.status }}"
+<div class="demanda
+    {% if d.data < hoje and d.status != 'CO' and d.status != 'FE' %}
+        vencida
+    {% else %}
+        {{ d.status }}
+    {% endif %}
+"
 onclick="event.stopPropagation(); abrirEditar(
     '{{ d.id }}',
     '{{ d.titulo|escapejs }}',
@@ -178,9 +196,11 @@ onclick="event.stopPropagation(); abrirEditar(
     '{{ d.status }}',
     '{{ d.responsavel.id|default:'' }}',
     '{{ d.motivo_atraso|default:''|escapejs }}',
-    '{{ d.nova_data|date:"Y-m-d"|default:"" }}' <!-- FIX -->
+    '{{ d.nova_data|date:'Y-m-d'|default:'' }}',
+    '{{ d.demanda_origem|yesno:'1,0' }}'
 )">
-{% if d.status == 'PE' %}⏳ {% endif %}{{ d.titulo }}
+{% if d.demanda_origem %}🔁 {% endif %}
+{{ d.titulo }}
 </div>
 {% endfor %}
 </div>
@@ -189,7 +209,6 @@ onclick="event.stopPropagation(); abrirEditar(
 
 </main>
 
-<!-- MODAL -->
 <div class="modal" id="modal">
 <div class="modal-content">
 
@@ -202,6 +221,8 @@ onclick="event.stopPropagation(); abrirEditar(
 <textarea name="descricao" id="descricao" placeholder="Descrição"
 {% if not is_admin %}readonly{% endif %}></textarea>
 
+<div id="infoPendente" class="info-pendente" style="display:none"></div>
+
 {% if is_admin %}
 <select name="responsavel" id="responsavel">
     <option value="">Responsável</option>
@@ -212,9 +233,10 @@ onclick="event.stopPropagation(); abrirEditar(
 {% endif %}
 
 <select name="status" id="status" onchange="togglePendente()">
-    <option value="AB">Aberto</option>
+    <option value="AB" {% if not is_admin %}disabled{% endif %}>Aberto</option>
     <option value="CO">Concluído</option>
     <option value="PE">Pendente</option>
+    <option value="FE" {% if not is_admin %}disabled{% endif %}>Fechado</option>
 </select>
 
 <div id="pendenteCampos" style="display:none">
@@ -264,16 +286,24 @@ function abrirCriar(dia){
     modal.style.display = "flex";
 }
 
-function abrirEditar(id, t, d, s, r, motivo, novaData){
+function abrirEditar(id, t, d, s, r, motivo, novaData, origem){
     form.action = `/demanda/editar/${id}/`;
     demandaAtual = id;
 
     titulo.value = t;
     descricao.value = d;
 
-    const statusField = document.getElementById("status");
-    statusField.value = s;
+    document.getElementById("status").value = s;
     togglePendente();
+
+    if(motivo){
+        document.getElementById("infoPendente").innerHTML =
+            "⏳ <strong>Motivo:</strong> " + motivo +
+            (novaData ? "<br><strong>Nova data:</strong> " + novaData : "");
+        document.getElementById("infoPendente").style.display = "block";
+    }else{
+        document.getElementById("infoPendente").style.display = "none";
+    }
 
     if(s === "PE"){
         document.querySelector("[name='motivo_atraso']").value = motivo || "";

@@ -2,7 +2,6 @@ from datetime import date
 from calendar import monthrange
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
 from .models import Demanda, Departamento, Perfil
@@ -20,7 +19,6 @@ def calendario(request, depto_id=None):
 
     perfil = get_object_or_404(Perfil, user=request.user)
 
-    # ===== DEFINIÇÃO DE DEPARTAMENTO =====
     if is_admin(request.user):
         departamentos = Departamento.objects.all()
         departamento = (
@@ -31,12 +29,10 @@ def calendario(request, depto_id=None):
         departamentos = None
         departamento = perfil.departamento
 
-    # ===== FUNCIONÁRIOS DO SETOR =====
     funcionarios = Perfil.objects.filter(
         departamento=departamento
     ).select_related('user')
 
-    # ===== CALENDÁRIO =====
     primeiro_dia, total_dias = monthrange(ano, mes)
 
     demandas = Demanda.objects.filter(
@@ -45,12 +41,10 @@ def calendario(request, depto_id=None):
         departamento=departamento
     )
 
-    # ===== FILTRO POR RESPONSÁVEL =====
     responsavel_id = request.GET.get('responsavel')
     if responsavel_id:
         demandas = demandas.filter(responsavel_id=responsavel_id)
 
-    # ===== AGRUPAR POR DIA =====
     demandas_por_dia = {}
     for d in demandas:
         demandas_por_dia.setdefault(d.data.day, []).append(d)
@@ -65,10 +59,10 @@ def calendario(request, depto_id=None):
         'dias_mes': range(1, total_dias + 1),
         'espacos_vazios': range(primeiro_dia),
         'is_admin': is_admin(request.user),
+        'hoje': hoje
     })
 
 
-# ================= CRIAR DEMANDA (RESTAURADO) =================
 @login_required
 @require_POST
 def criar_demanda(request):
@@ -87,34 +81,44 @@ def criar_demanda(request):
     return redirect(request.META.get('HTTP_REFERER', 'home'))
 
 
-# ================= EDITAR DEMANDA =================
 @login_required
 @require_POST
 def editar_demanda(request, id):
     demanda = get_object_or_404(Demanda, id=id)
     user = request.user
 
-    # ===== PERMISSÃO =====
     if not is_admin(user):
-        if not hasattr(user, 'perfil'):
+        if demanda.status == 'FE':
             return redirect('home')
+
         if demanda.departamento != user.perfil.departamento:
             return redirect('home')
 
-    status = request.POST.get('status')
+    novo_status = request.POST.get('status')
 
-    # ===== STATUS PENDENTE =====
-    if status:
-        demanda.status = status
+    if novo_status == 'PE':
+        motivo = request.POST.get('motivo_atraso', '')
+        nova_data = request.POST.get('nova_data')
 
-        if status == 'PE':
-            demanda.motivo_atraso = request.POST.get('motivo_atraso', '')
-            nova_data = request.POST.get('nova_data')
-            if nova_data:
-                demanda.nova_data = nova_data
-                demanda.data = nova_data
+        if nova_data:
+            nova_demanda = Demanda.objects.create(
+                titulo=demanda.titulo,
+                descricao=demanda.descricao,
+                data=nova_data,
+                status='PE',
+                motivo_atraso=motivo,
+                nova_data=nova_data,
+                departamento=demanda.departamento,
+                responsavel=demanda.responsavel,
+                demanda_origem=demanda
+            )
 
-    # ===== ADMIN PODE EDITAR MAIS CAMPOS =====
+            demanda.status = 'FE'
+            demanda.save()
+            return redirect(request.META.get('HTTP_REFERER', 'home'))
+
+    demanda.status = novo_status
+
     if is_admin(user):
         demanda.titulo = request.POST.get('titulo', demanda.titulo)
         demanda.descricao = request.POST.get('descricao', demanda.descricao)
@@ -126,30 +130,9 @@ def editar_demanda(request, id):
     return redirect(request.META.get('HTTP_REFERER', 'home'))
 
 
-# ================= EXCLUIR DEMANDA =================
 @login_required
 @require_POST
 def excluir_demanda(request, id):
     if is_admin(request.user):
         Demanda.objects.filter(id=id).delete()
     return redirect(request.META.get('HTTP_REFERER', 'home'))
-
-
-# ================= MOVER DEMANDA =================
-@login_required
-@require_POST
-def mover_demanda(request):
-    if not is_admin(request.user):
-        return JsonResponse({'error': 'forbidden'}, status=403)
-
-    demanda_id = request.POST.get('demanda_id')
-    nova_data = request.POST.get('nova_data')
-
-    if not demanda_id or not nova_data:
-        return JsonResponse({'error': 'dados inválidos'}, status=400)
-
-    demanda = get_object_or_404(Demanda, id=demanda_id)
-    demanda.data = nova_data
-    demanda.save()
-
-    return JsonResponse({'success': True})
