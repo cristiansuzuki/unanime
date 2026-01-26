@@ -178,7 +178,7 @@ onclick="event.stopPropagation(); abrirEditar(
     '{{ d.status }}',
     '{{ d.responsavel.id|default:'' }}',
     '{{ d.motivo_atraso|default:''|escapejs }}',
-    '{{ d.nova_data|default:'' }}'
+    '{{ d.nova_data|date:"Y-m-d"|default:"" }}' <!-- FIX -->
 )">
 {% if d.status == 'PE' %}⏳ {% endif %}{{ d.titulo }}
 </div>
@@ -271,12 +271,10 @@ function abrirEditar(id, t, d, s, r, motivo, novaData){
     titulo.value = t;
     descricao.value = d;
 
-    // ✅ AJUSTE 1: status correto ao abrir
     const statusField = document.getElementById("status");
     statusField.value = s;
     togglePendente();
 
-    // ✅ AJUSTE 2: preencher campos pendentes corretamente
     if(s === "PE"){
         document.querySelector("[name='motivo_atraso']").value = motivo || "";
         document.querySelector("[name='nova_data']").value = novaData || "";
