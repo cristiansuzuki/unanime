@@ -81,7 +81,7 @@ main{flex:1;padding:20px}
 .AB{background:#ccc}
 .CO{background:#5cb85c;color:#fff}
 .PE{background:#f0ad4e;color:#000}
-.FE{background:#666;color:#fff}
+.FE{background:#8e44ad;color:#fff}
 .vencida{background:#d9534f;color:#fff}
 
 .modal{
@@ -197,7 +197,7 @@ onclick="event.stopPropagation(); abrirEditar(
     '{{ d.responsavel.id|default:'' }}',
     '{{ d.motivo_atraso|default:''|escapejs }}',
     '{{ d.nova_data|date:'Y-m-d'|default:'' }}',
-    '{{ d.demanda_origem|yesno:'1,0' }}'
+    '{{ d.data|date:'Y-m-d' }}'
 )">
 {% if d.demanda_origem %}🔁 {% endif %}
 {{ d.titulo }}
@@ -233,15 +233,15 @@ onclick="event.stopPropagation(); abrirEditar(
 {% endif %}
 
 <select name="status" id="status" onchange="togglePendente()">
-    <option value="AB" {% if not is_admin %}disabled{% endif %}>Aberto</option>
+    <option value="AB">Aberto</option>
     <option value="CO">Concluído</option>
     <option value="PE">Pendente</option>
-    <option value="FE" {% if not is_admin %}disabled{% endif %}>Fechado</option>
+    <option value="FE">Fechado</option>
 </select>
 
 <div id="pendenteCampos" style="display:none">
     <textarea name="motivo_atraso" placeholder="Motivo do atraso"></textarea>
-    <input type="date" name="nova_data">
+    <input type="date" name="nova_data" min="{{ hoje|date:'Y-m-d' }}">
 </div>
 
 <button type="submit">Salvar</button>
@@ -270,39 +270,47 @@ function togglePendente(){
         status === "PE" ? "block" : "none";
 }
 
+/* 🔥 FUNÇÃO RESTAURADA */
 function abrirCriar(dia){
     {% if not is_admin %} return; {% endif %}
+
     form.action = "{% url 'criar_demanda' %}";
     demandaAtual = null;
     form.reset();
+
     document.getElementById("status").value = "AB";
     togglePendente();
 
-    form.innerHTML += `
+    form.insertAdjacentHTML("beforeend", `
         <input type="hidden" name="data"
-        value="{{ ano }}-{{ mes|stringformat:'02d' }}-${String(dia).padStart(2,'0')}">
+            value="{{ ano }}-{{ mes|stringformat:'02d' }}-${String(dia).padStart(2,'0')}">
         <input type="hidden" name="departamento" value="{{ departamento.id }}">
-    `;
+    `);
+
     modal.style.display = "flex";
 }
 
-function abrirEditar(id, t, d, s, r, motivo, novaData, origem){
+function abrirEditar(id, t, d, s, r, motivo, novaData, dataOriginal){
     form.action = `/demanda/editar/${id}/`;
     demandaAtual = id;
 
     titulo.value = t;
     descricao.value = d;
 
-    document.getElementById("status").value = s;
+    const statusField = document.getElementById("status");
+    const hoje = new Date().toISOString().split("T")[0];
+    const isVencida = dataOriginal < hoje;
+
+    statusField.value = s;
     togglePendente();
 
     if(motivo){
-        document.getElementById("infoPendente").innerHTML =
+        infoPendente.innerHTML =
             "⏳ <strong>Motivo:</strong> " + motivo +
             (novaData ? "<br><strong>Nova data:</strong> " + novaData : "");
-        document.getElementById("infoPendente").style.display = "block";
+        infoPendente.style.display = "block";
     }else{
-        document.getElementById("infoPendente").style.display = "none";
+        infoPendente.style.display = "none";
     }
 
     if(s === "PE"){
@@ -310,9 +318,21 @@ function abrirEditar(id, t, d, s, r, motivo, novaData, origem){
         document.querySelector("[name='nova_data']").value = novaData || "";
     }
 
-    const resp = document.getElementById("responsavel");
-    if(resp && r){
-        resp.value = r;
+    {% if not is_admin %}
+    if(isVencida){
+        [...statusField.options].forEach(o => o.disabled = o.value !== "PE");
+        statusField.value = "PE";
+        togglePendente();
+    }else{
+        [...statusField.options].forEach(o => {
+            if(o.value === "FE") o.disabled = true;
+            else o.disabled = false;
+        });
+    }
+    {% endif %}
+
+    if(r && document.getElementById("responsavel")){
+        document.getElementById("responsavel").value = r;
     }
 
     modal.style.display = "flex";
@@ -325,9 +345,7 @@ function excluirDemanda(){
     let f = document.createElement("form");
     f.method = "POST";
     f.action = `/demanda/excluir/${demandaAtual}/`;
-    f.innerHTML = `
-        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-    `;
+    f.innerHTML = `<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">`;
     document.body.appendChild(f);
     f.submit();
 }

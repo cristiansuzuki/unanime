@@ -86,6 +86,7 @@ def criar_demanda(request):
 def editar_demanda(request, id):
     demanda = get_object_or_404(Demanda, id=id)
     user = request.user
+    hoje = date.today()
 
     if not is_admin(user):
         if demanda.status == 'FE':
@@ -96,26 +97,36 @@ def editar_demanda(request, id):
 
     novo_status = request.POST.get('status')
 
+    # ===== REGRA: DATA PENDENTE NÃO PODE SER HOJE OU PASSADO =====
     if novo_status == 'PE':
-        motivo = request.POST.get('motivo_atraso', '')
         nova_data = request.POST.get('nova_data')
+        motivo = request.POST.get('motivo_atraso', '')
 
-        if nova_data:
-            nova_demanda = Demanda.objects.create(
-                titulo=demanda.titulo,
-                descricao=demanda.descricao,
-                data=nova_data,
-                status='PE',
-                motivo_atraso=motivo,
-                nova_data=nova_data,
-                departamento=demanda.departamento,
-                responsavel=demanda.responsavel,
-                demanda_origem=demanda
-            )
-
-            demanda.status = 'FE'
-            demanda.save()
+        if not nova_data:
             return redirect(request.META.get('HTTP_REFERER', 'home'))
+
+        nova_data_date = date.fromisoformat(nova_data)
+
+        if nova_data_date <= hoje:
+            # bloqueia qualquer tentativa de data retroativa ou hoje
+            return redirect(request.META.get('HTTP_REFERER', 'home'))
+
+        # cria nova demanda pendente
+        Demanda.objects.create(
+            titulo=demanda.titulo,
+            descricao=demanda.descricao,
+            data=nova_data_date,
+            status='PE',
+            motivo_atraso=motivo,
+            nova_data=nova_data_date,
+            departamento=demanda.departamento,
+            responsavel=demanda.responsavel,
+            demanda_origem=demanda
+        )
+
+        demanda.status = 'FE'
+        demanda.save()
+        return redirect(request.META.get('HTTP_REFERER', 'home'))
 
     demanda.status = novo_status
 
