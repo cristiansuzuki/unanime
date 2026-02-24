@@ -197,7 +197,8 @@ onclick="event.stopPropagation(); abrirEditar(
     '{{ d.responsavel.id|default:'' }}',
     '{{ d.motivo_atraso|default:''|escapejs }}',
     '{{ d.nova_data|date:'Y-m-d'|default:'' }}',
-    '{{ d.data|date:'Y-m-d' }}'
+    '{{ d.data|date:'Y-m-d' }}',
+    '{{ d.data_fim|date:'Y-m-d'|default:'' }}'
 )">
 {% if d.demanda_origem %}🔁 {% endif %}
 {{ d.titulo }}
@@ -221,6 +222,11 @@ onclick="event.stopPropagation(); abrirEditar(
 <textarea name="descricao" id="descricao" placeholder="Descrição"
 {% if not is_admin %}readonly{% endif %}></textarea>
 
+{% if is_admin %}
+<label>Data Final</label>
+<input type="date" name="data_fim" id="data_fim">
+{% endif %}
+
 <div id="infoPendente" class="info-pendente" style="display:none"></div>
 
 {% if is_admin %}
@@ -241,7 +247,7 @@ onclick="event.stopPropagation(); abrirEditar(
 
 <div id="pendenteCampos" style="display:none">
     <textarea name="motivo_atraso" placeholder="Motivo do atraso"></textarea>
-    <input type="date" name="nova_data" min="{{ hoje|date:'Y-m-d' }}">
+    <input type="date" name="nova_data" id="nova_data" min="{{ hoje|date:'Y-m-d' }}">
 </div>
 
 <button type="submit">Salvar</button>
@@ -255,7 +261,6 @@ onclick="event.stopPropagation(); abrirEditar(
 <button type="button" class="btn-cancelar" onclick="fechar()">Cancelar</button>
 
 </form>
-
 </div>
 </div>
 
@@ -270,7 +275,6 @@ function togglePendente(){
         status === "PE" ? "block" : "none";
 }
 
-/* 🔥 FUNÇÃO RESTAURADA */
 function abrirCriar(dia){
     {% if not is_admin %} return; {% endif %}
 
@@ -278,61 +282,57 @@ function abrirCriar(dia){
     demandaAtual = null;
     form.reset();
 
-    document.getElementById("status").value = "AB";
-    togglePendente();
+    const dataInicio = "{{ ano }}-{{ mes|stringformat:'02d' }}-" + String(dia).padStart(2,'0');
 
     form.insertAdjacentHTML("beforeend", `
-        <input type="hidden" name="data"
-            value="{{ ano }}-{{ mes|stringformat:'02d' }}-${String(dia).padStart(2,'0')}">
+        <input type="hidden" name="data" value="${dataInicio}">
         <input type="hidden" name="departamento" value="{{ departamento.id }}">
     `);
+
+    document.getElementById("data_fim").value = dataInicio;
 
     modal.style.display = "flex";
 }
 
-function abrirEditar(id, t, d, s, r, motivo, novaData, dataOriginal){
+function abrirEditar(id, t, d, s, r, motivo, novaData, dataOriginal, dataFim){
+
     form.action = `/demanda/editar/${id}/`;
     demandaAtual = id;
 
     titulo.value = t;
     descricao.value = d;
+    status.value = s;
 
-    const statusField = document.getElementById("status");
-    const hoje = new Date().toISOString().split("T")[0];
-    const isVencida = dataOriginal < hoje;
-
-    statusField.value = s;
-    togglePendente();
-
-    if(motivo){
-        infoPendente.innerHTML =
-            "⏳ <strong>Motivo:</strong> " + motivo +
-            (novaData ? "<br><strong>Nova data:</strong> " + novaData : "");
-        infoPendente.style.display = "block";
-    }else{
-        infoPendente.style.display = "none";
-    }
-
-    if(s === "PE"){
-        document.querySelector("[name='motivo_atraso']").value = motivo || "";
-        document.querySelector("[name='nova_data']").value = novaData || "";
-    }
+    const statusSelect = document.getElementById("status");
+    const motivoField = document.querySelector("textarea[name='motivo_atraso']");
+    const novaDataField = document.getElementById("nova_data");
+    const pendenteBox = document.getElementById("pendenteCampos");
+    const infoPendente = document.getElementById("infoPendente");
 
     {% if not is_admin %}
-    if(isVencida){
-        [...statusField.options].forEach(o => o.disabled = o.value !== "PE");
-        statusField.value = "PE";
-        togglePendente();
-    }else{
-        [...statusField.options].forEach(o => {
-            if(o.value === "FE") o.disabled = true;
-            else o.disabled = false;
-        });
-    }
+    [...statusSelect.options].forEach(opt => {
+        opt.disabled = !(opt.value === "CO" || opt.value === "PE");
+    });
     {% endif %}
 
-    if(r && document.getElementById("responsavel")){
-        document.getElementById("responsavel").value = r;
+    if(document.getElementById("data_fim")){
+        document.getElementById("data_fim").value = dataFim || dataOriginal;
+    }
+
+    motivoField.value = motivo || "";
+    novaDataField.value = novaData || "";
+    novaDataField.min = "{{ hoje|date:'Y-m-d' }}";
+
+    if(s === "PE"){
+        pendenteBox.style.display = "block";
+        if(novaData){
+            infoPendente.style.display = "block";
+            infoPendente.innerHTML =
+                `Essa demanda está pendente para <strong>${novaData}</strong>`;
+        }
+    } else {
+        pendenteBox.style.display = "none";
+        infoPendente.style.display = "none";
     }
 
     modal.style.display = "flex";
@@ -353,7 +353,6 @@ function excluirDemanda(){
 function fechar(){
     modal.style.display = "none";
     form.reset();
-    togglePendente();
 }
 </script>
 

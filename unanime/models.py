@@ -32,7 +32,9 @@ class Demanda(models.Model):
 
     titulo = models.CharField(max_length=200)
     descricao = models.TextField(blank=True)
+
     data = models.DateField()
+    data_fim = models.DateField(null=True, blank=True)  # NOVO CAMPO
 
     status = models.CharField(
         max_length=2,
