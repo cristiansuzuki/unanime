@@ -309,9 +309,20 @@ function abrirEditar(id, t, d, s, r, motivo, novaData, dataOriginal, dataFim){
     const pendenteBox = document.getElementById("pendenteCampos");
     const infoPendente = document.getElementById("infoPendente");
 
+    const hoje = new Date("{{ hoje|date:'Y-m-d' }}");
+    const dataFinalDemanda = new Date(dataFim || dataOriginal);
+    const vencida = hoje > dataFinalDemanda;
+
     {% if not is_admin %}
     [...statusSelect.options].forEach(opt => {
+
+        // funcionário só pode CO ou PE normalmente
         opt.disabled = !(opt.value === "CO" || opt.value === "PE");
+
+        // 🔒 se estiver vencida, bloqueia Concluído
+        if(vencida && opt.value === "CO"){
+            opt.disabled = true;
+        }
     });
     {% endif %}
 

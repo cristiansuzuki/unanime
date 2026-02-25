@@ -118,7 +118,10 @@ def editar_demanda(request, id):
         if demanda.departamento != user.perfil.departamento:
             return redirect('home')
 
-        # 🔥 REGRA DE PENDENTE RESTAURADA
+        data_final = demanda.data_fim or demanda.data
+        vencida = hoje > data_final
+
+        # 🔥 REGRA DE PENDENTE
         if novo_status == 'PE':
 
             nova_data = request.POST.get('nova_data')
@@ -129,11 +132,9 @@ def editar_demanda(request, id):
 
             nova_data_date = date.fromisoformat(nova_data)
 
-            # não pode ser hoje ou passado
             if nova_data_date < hoje:
                 return redirect(request.META.get('HTTP_REFERER', 'home'))
 
-            # cria nova demanda
             Demanda.objects.create(
                 titulo=demanda.titulo,
                 descricao=demanda.descricao,
@@ -152,8 +153,11 @@ def editar_demanda(request, id):
 
             return redirect(request.META.get('HTTP_REFERER', 'home'))
 
-        # 🔒 Só pode concluir
+        # 🔒 Só pode concluir se NÃO estiver vencida
         if novo_status == 'CO':
+            if vencida:
+                return redirect(request.META.get('HTTP_REFERER', 'home'))
+
             demanda.status = 'CO'
             demanda.save()
             return redirect(request.META.get('HTTP_REFERER', 'home'))
