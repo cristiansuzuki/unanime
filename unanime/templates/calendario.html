@@ -345,6 +345,26 @@ function abrirEditar(id, t, d, s, r, motivo, novaData, dataOriginal, dataFim){
     motivoField.value = motivo || "";
     novaDataField.value = novaData || "";
 
+    // ===== BLOQUEIO APENAS PARA FUNCIONÁRIOS =====
+    {% if not is_admin %}
+    const hojeJS = new Date("{{ hoje|date:'Y-m-d' }}");
+    const dataFinalDemanda = new Date(dataFim || dataOriginal);
+    let estaVencida = (dataFinalDemanda < hojeJS);
+
+    Array.from(statusSelect.options).forEach(opt => {
+        opt.disabled = false;
+    });
+
+    if(estaVencida){
+        Array.from(statusSelect.options).forEach(opt => {
+            if(opt.value === "CO" || opt.value === "FE"){
+                opt.disabled = true;
+            }
+        });
+    }
+    {% endif %}
+    // ===============================================
+
     if(statusSelect.value === "PE"){
         pendenteBox.style.display = "block";
         if(novaData){
