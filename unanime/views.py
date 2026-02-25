@@ -73,7 +73,8 @@ def calendario(request, depto_id=None):
         'dias_mes': range(1, total_dias + 1),
         'espacos_vazios': range(primeiro_dia),
         'is_admin': is_admin(request.user),
-        'hoje': hoje
+        'hoje': hoje,
+        'todos_funcionarios': Perfil.objects.select_related('user', 'departamento')
     })
 
 
@@ -93,7 +94,8 @@ def criar_demanda(request):
         data_fim=data_fim,
         status=request.POST.get('status', 'AB'),
         departamento_id=request.POST['departamento'],
-        responsavel_id=request.POST.get('responsavel') or None
+        responsavel_id=request.POST.get('responsavel') or None,
+        criado_por=request.user
     )
 
     return redirect(request.META.get('HTTP_REFERER', 'home'))
@@ -107,9 +109,6 @@ def editar_demanda(request, id):
     hoje = date.today()
     novo_status = request.POST.get('status')
 
-    # =========================
-    # FUNCIONÁRIO
-    # =========================
     if not is_admin(user):
 
         if demanda.status == 'FE':
@@ -118,14 +117,16 @@ def editar_demanda(request, id):
         if demanda.departamento != user.perfil.departamento:
             return redirect('home')
 
+        demanda.descricao = request.POST.get('descricao', demanda.descricao)
+
         data_final = demanda.data_fim or demanda.data
         vencida = hoje > data_final
 
-        # 🔥 REGRA DE PENDENTE
         if novo_status == 'PE':
 
             nova_data = request.POST.get('nova_data')
             motivo = request.POST.get('motivo_atraso', '')
+            funcionarios_extra = request.POST.getlist('funcionarios_extra')
 
             if not nova_data:
                 return redirect(request.META.get('HTTP_REFERER', 'home'))
@@ -135,6 +136,7 @@ def editar_demanda(request, id):
             if nova_data_date < hoje:
                 return redirect(request.META.get('HTTP_REFERER', 'home'))
 
+            # nova para o próprio funcionário
             Demanda.objects.create(
                 titulo=demanda.titulo,
                 descricao=demanda.descricao,
@@ -145,15 +147,33 @@ def editar_demanda(request, id):
                 nova_data=nova_data_date,
                 departamento=demanda.departamento,
                 responsavel=demanda.responsavel,
-                demanda_origem=demanda
+                demanda_origem=demanda,
+                criado_por=request.user
             )
+
+            # novas para funcionários adicionais
+            for funcionario_id in funcionarios_extra:
+                perfil_destino = Perfil.objects.get(user_id=funcionario_id)
+
+                Demanda.objects.create(
+                    titulo=demanda.titulo,
+                    descricao=demanda.descricao,
+                    data=nova_data_date,
+                    data_fim=nova_data_date,
+                    status='PE',  # ALTERAÇÃO AQUI
+                    motivo_atraso=motivo,
+                    nova_data=nova_data_date,
+                    departamento=perfil_destino.departamento,
+                    responsavel_id=funcionario_id,
+                    demanda_origem=demanda,
+                    criado_por=request.user
+                )
 
             demanda.status = 'FE'
             demanda.save()
 
             return redirect(request.META.get('HTTP_REFERER', 'home'))
 
-        # 🔒 Só pode concluir se NÃO estiver vencida
         if novo_status == 'CO':
             if vencida:
                 return redirect(request.META.get('HTTP_REFERER', 'home'))
@@ -162,11 +182,9 @@ def editar_demanda(request, id):
             demanda.save()
             return redirect(request.META.get('HTTP_REFERER', 'home'))
 
-        return redirect('home')
+        demanda.save()
+        return redirect(request.META.get('HTTP_REFERER', 'home'))
 
-    # =========================
-    # ADMIN
-    # =========================
     demanda.status = novo_status
     demanda.titulo = request.POST.get('titulo', demanda.titulo)
     demanda.descricao = request.POST.get('descricao', demanda.descricao)

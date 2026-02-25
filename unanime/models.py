@@ -34,7 +34,7 @@ class Demanda(models.Model):
     descricao = models.TextField(blank=True)
 
     data = models.DateField()
-    data_fim = models.DateField(null=True, blank=True)  # NOVO CAMPO
+    data_fim = models.DateField(null=True, blank=True)
 
     status = models.CharField(
         max_length=2,
@@ -65,6 +65,15 @@ class Demanda(models.Model):
         null=True,
         blank=True,
         related_name='demandas_responsavel'
+    )
+
+    # 🔥 NOVO CAMPO
+    criado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='demandas_criadas'
     )
 
     criado_em = models.DateTimeField(auto_now_add=True)
